@@ -1,0 +1,17 @@
+{
+  "name": "fintech",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "setup": "npm ci --prefix Backend && npm ci --prefix Frontend && npm ci --prefix Database",
+    "dev": "npm run dev --prefix Frontend",
+    "build": "npm run build --prefix Backend && npm run build --prefix Frontend && npm run build --prefix Database",
+    "test": "npm test --prefix Backend && npm test --prefix Frontend",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.0",
+    "typescript": "~5.9.3"
+  },
+  "engines": { "node": ">=24" }
+}
