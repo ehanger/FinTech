@@ -1,11 +1,13 @@
 import type { MortgageInput } from './finance/mortgage';
 import type { TaxInput } from './finance/tax';
+import type { DownPaymentInput } from './finance/downPayment';
 
 export const STORAGE_KEY = 'fintech.mortgage-planner.v1';
 
 export interface PlannerState {
   mortgage: MortgageInput;
   tax: TaxInput;
+  savings: DownPaymentInput;
 }
 
 export function defaultPlannerState(now = new Date()): PlannerState {
@@ -17,6 +19,7 @@ export function defaultPlannerState(now = new Date()): PlannerState {
       firstPayment: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`,
     },
     tax: { annualIncome: 180_000, filingStatus: 'married', location: '', otherDeductions: 10_000, otherSalt: 10_000 },
+    savings: { retirementSavings: 0, nonRetirementSavings: 0, homeSaleProceeds: 0, monthlyExpenses: 0 },
   };
 }
 
@@ -51,6 +54,7 @@ export function decodePlannerState(raw: string | null, now = new Date()): Planne
     if (saved.version !== 1) return defaults;
     const mortgage = restoreFields(defaults.mortgage, saved.mortgage);
     const tax = restoreFields(defaults.tax, saved.tax);
+    const savings = restoreFields(defaults.savings, saved.savings);
     if (!['fixed', 'percentage'].includes(mortgage.insuranceMode)) mortgage.insuranceMode = defaults.mortgage.insuranceMode;
     if (![15, 30].includes(mortgage.termYears)) mortgage.termYears = defaults.mortgage.termYears;
     if (!['single', 'married'].includes(tax.filingStatus)) tax.filingStatus = defaults.tax.filingStatus;
@@ -59,7 +63,7 @@ export function decodePlannerState(raw: string | null, now = new Date()): Planne
     if (mortgage.firstPayment !== '' && !new RegExp(`^${now.getFullYear()}-(0[1-9]|1[0-2])$`).test(mortgage.firstPayment)) {
       mortgage.firstPayment = defaults.mortgage.firstPayment;
     }
-    return { mortgage, tax };
+    return { mortgage, tax, savings };
   } catch {
     return defaults;
   }

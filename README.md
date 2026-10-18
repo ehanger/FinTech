@@ -42,7 +42,7 @@ npm run setup
 npm run dev
 ```
 
-Open **http://127.0.0.1:5173**. The mortgage tool works without the backend or database. Inputs survive reloading or leaving the page. **Reset to defaults** replaces the saved mortgage and tax inputs. Avoid sensitive information on shared devices. If browser storage is blocked or full, calculations still work but inputs cannot be saved. Cached first-payment dates from previous years roll forward to the current month because projections start in the current year.
+Open **http://127.0.0.1:5173**. The mortgage tool works without the backend or database. Inputs survive reloading or leaving the page. **Reset to defaults** replaces the saved mortgage, tax, and down-payment planning inputs. Avoid sensitive information on shared devices. If browser storage is blocked or full, calculations still work but inputs cannot be saved. Cached first-payment dates from previous years roll forward to the current month because projections start in the current year.
 
 To run the backend outside Compose, provide `MONGO_APP_USERNAME`, `MONGO_APP_PASSWORD`, and optionally `MONGO_HOST` (default `localhost`), `MONGO_DATABASE` (default `fintech`), and `PORT` (default `3000`) as environment variables, with a reachable MongoDB instance already initialized. Run `npm run dev --prefix Backend`. The Compose database has no published port by design.
 
@@ -88,6 +88,16 @@ For each calendar year through the final scheduled payment:
 7. Show **effective interest rate**: (interest paid − mortgage-interest federal savings) ÷ average monthly opening loan balance × 12 ÷ modeled months. Equivalently, note rate × (1 − savings ÷ interest paid). This annualized after-tax estimate accounts for the actual outstanding debt and partial years; it is not APR. Zero-rate loans show 0%; cash purchases show N/A.
 
 Illustrative example: $20,000 non-interest deductions (including property tax) + $30,000 eligible mortgage interest − $33,000 standard deduction = $17,000 additional deduction. At 24%, the benefit is $4,080/year or $340/month, provided the deduction stays within that bracket. Existing itemization and property-tax benefits are never attributed to mortgage interest.
+
+### Planning the down payment
+
+The collapsible section at the bottom accepts retirement savings, non-retirement liquid savings, optional net home sale proceeds (after the current mortgage payoff and selling costs), and monthly expenses excluding housing. Inputs default to zero and are saved locally with the other planner inputs.
+
+- Required purchase cash is the down payment plus estimated closing costs of **2.5% of the loan amount**. A cash purchase therefore has zero modeled closing costs; actual costs can differ.
+- Funding uses sale proceeds first, non-retirement savings next, and retirement savings last. Excess proceeds become non-retirement savings. Retirement use triggers a warning; insufficient total funds produce a shortfall and no savings-duration estimate.
+- Remaining savings are shown separately and combined. No-income duration divides remaining savings by current total monthly housing costs plus other monthly expenses, rounding **down to complete months**, displayed as years and months, with and without retirement savings.
+- This is a constant-spending nominal-dollar estimate: no income, returns, inflation, income/withdrawal taxes, withdrawal penalties, or mortgage-interest tax benefits. Housing costs include property tax and stay constant even beyond mortgage payoff. Retirement funds are assumed accessible for the inclusive estimate. Zero monthly spending is shown as no depletion.
+- Changing mortgage inputs, including the down payment, immediately updates purchase costs, remaining savings, and savings duration.
 
 ### Tax baseline and limits
 

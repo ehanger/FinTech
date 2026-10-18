@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { currentYearPropertyTax, defaultPlannerState, loadPlannerState, savePlannerState } from './plannerState';
 import { calculateMortgage, validateMortgage, type MortgageInput, type MortgageResult } from './finance/mortgage';
 import { projectTaxes, TAX_BASE_YEAR, validateTax, type TaxInput, type TaxYear } from './finance/tax';
-import { money, paymentDate, percent, wholeMoney } from './format';
+import { calculateDownPayment, validateDownPayment, type DownPaymentInput } from './finance/downPayment';
+import { money, paymentDate, percent, wholeMoney, yearsAndMonths } from './format';
 
 interface NumberFieldProps {
   name: string;
@@ -96,6 +97,58 @@ function TaxSection({ input, result, currentYear, tax, onChange }: TaxSectionPro
   </section>;
 }
 
+function DownPaymentPlanning({ savings, downPayment, result, onChange }: {
+  savings: DownPaymentInput;
+  downPayment: number;
+  result: MortgageResult | null;
+  onChange: (savings: DownPaymentInput) => void;
+}) {
+  const update = (key: keyof DownPaymentInput, value: number) => onChange({ ...savings, [key]: value });
+  const errors = validateDownPayment(savings);
+  const plan = result && !errors.length ? calculateDownPayment(savings, downPayment, result.loanAmount, result.totalMonthly) : null;
+  const duration = (months: number | null) => plan && plan.shortfall > 0 ? 'N/A — purchase not funded'
+    : months === null ? 'No depletion (zero expenses)' : yearsAndMonths(months);
+  return <details className="panel down-payment-plan">
+    <summary><h2>Planning the down payment</h2></summary>
+    <div className="down-payment-content">
+      <p className="input-note">Down payment plus closing costs uses home sale proceeds first, then non-retirement savings, then retirement savings. Unused sale proceeds are added to non-retirement savings.</p>
+      <div className="input-grid">
+        <NumberField name="retirement-savings" label="Retirement savings" value={savings.retirementSavings} onChange={(n) => update('retirementSavings', n)} />
+        <NumberField name="non-retirement-savings" label="Non-retirement liquid savings" value={savings.nonRetirementSavings} onChange={(n) => update('nonRetirementSavings', n)} />
+        <NumberField name="home-sale-proceeds" label="Expected home sale proceeds" value={savings.homeSaleProceeds} onChange={(n) => update('homeSaleProceeds', n)} hint="Net cash after paying off the current mortgage and selling costs. Do not also include this in savings." optional />
+        <NumberField name="monthly-expenses" label="Monthly expenses excluding housing" value={savings.monthlyExpenses} onChange={(n) => update('monthlyExpenses', n)} />
+      </div>
+      <Errors errors={errors} />
+      {!result && <p className="info-box">Correct the mortgage inputs to calculate savings after purchase.</p>}
+      {plan && <>
+        <dl className="planning-results">
+          <div><dt>Down payment</dt><dd>{money(downPayment)}</dd></div>
+          <div><dt>Estimated closing costs (2.5% of loan)</dt><dd data-testid="closing-costs">{money(plan.closingCosts)}</dd></div>
+          <div><dt>Total cash needed</dt><dd data-testid="purchase-cash">{money(plan.purchaseCash)}</dd></div>
+          <div><dt>Home sale proceeds used</dt><dd>{money(plan.saleProceedsUsed)}</dd></div>
+          <div><dt>Non-retirement savings used</dt><dd>{money(plan.nonRetirementUsed)}</dd></div>
+          <div><dt>Retirement savings used</dt><dd>{money(plan.retirementUsed)}</dd></div>
+        </dl>
+        {plan.retirementUsed > 0 && <p className="planning-warning" role="status">Warning: this purchase uses {money(plan.retirementUsed)} of retirement savings. Withdrawal restrictions, taxes, and penalties may apply; they are not included.</p>}
+        {plan.shortfall > 0 && <p className="error-box" role="alert">Insufficient funds: an additional {money(plan.shortfall)} is needed for the down payment and closing costs. Savings duration is unavailable until the purchase is fully funded.</p>}
+        <h3>Savings after purchase</h3>
+        <dl className="planning-results">
+          <div><dt>Non-retirement savings remaining</dt><dd data-testid="non-retirement-remaining">{money(plan.nonRetirementRemaining)}</dd></div>
+          <div><dt>Retirement savings remaining</dt><dd data-testid="retirement-remaining">{money(plan.retirementRemaining)}</dd></div>
+          <div><dt>Total savings remaining</dt><dd data-testid="savings-remaining">{money(plan.totalRemaining)}</dd></div>
+        </dl>
+        <h3>Savings duration with no income</h3>
+        <p className="input-note">Monthly spending: <strong data-testid="monthly-spending">{money(plan.monthlySpending)}</strong> ({money(result!.totalMonthly)} housing + {money(savings.monthlyExpenses)} other expenses).</p>
+        <dl className="planning-results planning-duration">
+          <div><dt>Excluding retirement savings</dt><dd data-testid="runway-excluding-retirement">{duration(plan.monthsExcludingRetirement)}</dd></div>
+          <div><dt>Including retirement savings</dt><dd data-testid="runway-including-retirement">{duration(plan.monthsIncludingRetirement)}</dd></div>
+        </dl>
+      </>}
+      <p className="table-note">Nominal dollars only. Savings duration rounds down to complete months and holds current monthly spending constant, including housing costs even beyond loan payoff. No income, investment returns, inflation, income or withdrawal taxes, penalties, or mortgage-interest tax savings are modeled. Property tax and insurance remain included in housing costs. Retirement savings are assumed accessible for the inclusive estimate. Closing costs are estimated as 2.5% of the loan amount, so cash purchases have $0 estimated closing costs in this model; actual costs may differ.</p>
+    </div>
+  </details>;
+}
+
 export function MortgagePage() {
   const today = new Date();
   const currentYear = today.getFullYear();
@@ -109,7 +162,7 @@ export function MortgagePage() {
       const mortgage = { ...previous.mortgage, [key]: value };
       const propertyTax = currentYearPropertyTax(mortgage, currentYear);
       const totalChanged = propertyTax !== null && propertyTax !== currentYearPropertyTax(previous.mortgage, currentYear);
-      return { mortgage, tax: totalChanged
+      return { ...previous, mortgage, tax: totalChanged
         ? { ...previous.tax, otherSalt: previous.tax.otherDeductions } : previous.tax };
     });
   const reset = () => setPlanner(defaultPlannerState(new Date()));
@@ -127,5 +180,6 @@ export function MortgagePage() {
     </section>{result ? <PaymentSummary input={input} result={result} /> : <aside className="summary-card"><h2>Estimate unavailable</h2><p>Correct the highlighted input issues to calculate your payment.</p></aside>}</div>
     {result && <Amortization result={result} />}
     <TaxSection input={input} result={result} currentYear={currentYear} tax={tax} onChange={(next) => setPlanner((previous) => ({ ...previous, tax: next }))} />
+    <DownPaymentPlanning savings={planner.savings} downPayment={input.downPayment} result={result} onChange={(savings) => setPlanner((previous) => ({ ...previous, savings }))} />
   </>;
 }

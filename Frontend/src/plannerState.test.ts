@@ -20,6 +20,7 @@ describe('saved planner inputs', () => {
     state.mortgage.interestRate = NaN;
     state.tax.location = 'Seattle, WA';
     state.tax.otherSalt = 4000;
+    state.savings = { retirementSavings: 200_000, nonRetirementSavings: 80_000, homeSaleProceeds: 50_000, monthlyExpenses: NaN };
     let raw = '';
     vi.stubGlobal('window', { localStorage: {
       setItem: (key: string, value: string) => { expect(key).toBe(STORAGE_KEY); raw = value; },
@@ -39,5 +40,12 @@ describe('saved planner inputs', () => {
     vi.stubGlobal('window', { get localStorage() { throw new Error('blocked'); } });
     expect(loadPlannerState(now)).toEqual(defaultPlannerState(now));
     expect(savePlannerState(defaultPlannerState(now))).toBe(false);
+  });
+  it('restores older saved scenarios with default savings and ignores malformed savings fields', () => {
+    const old = { version: 1, mortgage: { purchasePrice: 800_000 } };
+    const restored = decodePlannerState(JSON.stringify(old), now);
+    expect(restored.mortgage.purchasePrice).toBe(800_000);
+    expect(restored.savings).toEqual(defaultPlannerState(now).savings);
+    expect(decodePlannerState(JSON.stringify({ ...old, savings: { retirementSavings: 'bad', monthlyExpenses: {} } }), now).savings).toEqual(restored.savings);
   });
 });
